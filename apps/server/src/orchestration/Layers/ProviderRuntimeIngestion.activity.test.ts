@@ -82,6 +82,43 @@ describe("runtimeEventToActivities task progress", () => {
     expect(usagePayload).not.toHaveProperty("status");
   });
 });
+
+describe("runtimeEventToActivities Claude usage", () => {
+  it("persists a sanitized latest rate-limit snapshot", () => {
+    const event = {
+      ...base,
+      provider: ProviderDriverKind.make("claudeAgent"),
+      type: "account.rate-limits.updated",
+      eventId: EventId.make("evt-claude-usage"),
+      payload: {
+        rateLimits: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            status: "allowed_warning",
+            utilization: 0.92,
+            resetsAt: 1_787_058_000,
+            rateLimitType: "five_hour",
+            overageStatus: "rejected",
+          },
+          uuid: "do-not-persist",
+          session_id: "do-not-persist",
+        },
+      },
+    } satisfies ProviderRuntimeEvent;
+
+    const [activity] = runtimeEventToActivities(event);
+
+    expect(activity?.id).toBe("account-rate-limit:thread-1");
+    expect(activity?.kind).toBe("account.rate-limit.updated");
+    expect(activity?.payload).toEqual({
+      status: "allowed_warning",
+      utilization: 0.92,
+      resetsAt: 1_787_058_000,
+      rateLimitType: "five_hour",
+    });
+  });
+});
+
 describe("runtimeEventToActivities tool streaming persistence", () => {
   const accumulatedStdout = [
     "first line of output",

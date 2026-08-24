@@ -133,6 +133,8 @@ import {
   submitComposerDraft,
 } from "./composerSubmission";
 import { ComposerPromptLengthValidation } from "./ComposerPromptLengthValidation";
+import { ClaudeUsageMeter } from "./ClaudeUsageMeter";
+import { deriveLatestClaudeUsage } from "../../lib/claudeUsage";
 
 type ComposerCommandMenuPosition = {
   bottom: number;
@@ -1007,6 +1009,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activeThreadModelDisplayName = useMemo(
     () => resolveContextWindowModelDisplayName(activeThreadModelSelection, modelOptionsByInstance),
     [activeThreadModelSelection, modelOptionsByInstance],
+  );
+  const activeClaudeUsage = useMemo(
+    () => deriveLatestClaudeUsage(activeThreadActivities ?? []),
+    [activeThreadActivities],
   );
 
   // ------------------------------------------------------------------
@@ -3413,30 +3419,37 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       No provider available
                     </Button>
                   ) : (
-                    <ProviderModelPicker
-                      compact={isComposerFooterCompact}
-                      activeInstanceId={selectedInstanceId}
-                      model={selectedModelForPickerWithCustomFallback}
-                      lockedProvider={lockedProvider}
-                      lockedContinuationGroupKey={lockedContinuationGroupKey}
-                      instanceEntries={providerInstanceEntries}
-                      keybindings={keybindings}
-                      modelOptionsByInstance={modelOptionsByInstance}
-                      triggerClassName="-ms-2.5"
-                      terminalOpen={terminalOpen}
-                      open={isComposerModelPickerOpen}
-                      {...(composerProviderState.modelPickerIconClassName
-                        ? {
-                            activeProviderIconClassName:
-                              composerProviderState.modelPickerIconClassName,
-                          }
-                        : {})}
-                      onOpenChange={(open) => {
-                        setIsComposerModelPickerOpen(open);
-                      }}
-                      getModelDisabledReason={getModelDisabledReason}
-                      onInstanceModelChange={onProviderModelSelect}
-                    />
+                    <div className="flex min-w-0 shrink-0 flex-col items-start">
+                      <ProviderModelPicker
+                        compact={isComposerFooterCompact}
+                        activeInstanceId={selectedInstanceId}
+                        model={selectedModelForPickerWithCustomFallback}
+                        lockedProvider={lockedProvider}
+                        lockedContinuationGroupKey={lockedContinuationGroupKey}
+                        instanceEntries={providerInstanceEntries}
+                        keybindings={keybindings}
+                        modelOptionsByInstance={modelOptionsByInstance}
+                        triggerClassName="-ms-2.5"
+                        terminalOpen={terminalOpen}
+                        open={isComposerModelPickerOpen}
+                        {...(composerProviderState.modelPickerIconClassName
+                          ? {
+                              activeProviderIconClassName:
+                                composerProviderState.modelPickerIconClassName,
+                            }
+                          : {})}
+                        onOpenChange={(open) => {
+                          setIsComposerModelPickerOpen(open);
+                        }}
+                        getModelDisabledReason={getModelDisabledReason}
+                        onInstanceModelChange={onProviderModelSelect}
+                      />
+                      {selectedProvider === "claudeAgent" &&
+                      !isComposerFooterCompact &&
+                      activeClaudeUsage ? (
+                        <ClaudeUsageMeter usage={activeClaudeUsage} />
+                      ) : null}
+                    </div>
                   )}
 
                   {isComposerFooterCompact ? (

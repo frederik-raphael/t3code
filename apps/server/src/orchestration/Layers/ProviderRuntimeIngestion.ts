@@ -256,6 +256,43 @@ function buildContextWindowActivityPayload(
   return event.payload.usage;
 }
 
+function buildRateLimitActivityPayload(
+  event: Extract<ProviderRuntimeEvent, { type: "account.rate-limits.updated" }>,
+): Record<string, unknown> | undefined {
+  const rateLimits =
+    event.payload.rateLimits && typeof event.payload.rateLimits === "object"
+      ? (event.payload.rateLimits as Record<string, unknown>)
+      : undefined;
+  const rateLimitInfo =
+    rateLimits?.rate_limit_info && typeof rateLimits.rate_limit_info === "object"
+      ? (rateLimits.rate_limit_info as Record<string, unknown>)
+      : undefined;
+  if (!rateLimitInfo) {
+    return undefined;
+  }
+
+  const status = rateLimitInfo.status;
+  const utilization = rateLimitInfo.utilization;
+  const resetsAt = rateLimitInfo.resetsAt;
+  const rateLimitType = rateLimitInfo.rateLimitType;
+  if (
+    (status !== "allowed" && status !== "allowed_warning" && status !== "rejected") ||
+    (utilization !== undefined &&
+      (typeof utilization !== "number" || !Number.isFinite(utilization))) ||
+    (resetsAt !== undefined && (typeof resetsAt !== "number" || !Number.isFinite(resetsAt))) ||
+    (rateLimitType !== undefined && typeof rateLimitType !== "string")
+  ) {
+    return undefined;
+  }
+
+  return {
+    status,
+    ...(utilization === undefined ? {} : { utilization }),
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+    ...(rateLimitType === undefined ? {} : { rateLimitType }),
+  };
+}
+
 function normalizeRuntimeTurnState(
   value: string | undefined,
 ): "completed" | "failed" | "interrupted" | "cancelled" {
@@ -782,6 +819,28 @@ export function runtimeEventToActivities(
           tone: "info",
           kind: "context-window.updated",
           summary: "Context window updated",
+          payload,
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "account.rate-limits.updated": {
+      const payload = buildRateLimitActivityPayload(event);
+      if (!payload) {
+        return [];
+      }
+
+      return [
+        {
+          // Rate-limit updates are latest state, not history. A stable id
+          // keeps repeated SDK notifications from growing every thread.
+          id: EventId.make(`account-rate-limit:${event.threadId}`),
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "account.rate-limit.updated",
+          summary: "Claude usage updated",
           payload,
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
